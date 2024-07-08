@@ -67,9 +67,21 @@ String getSpotifyRequestUrl()
   return url;
 }
 
-
 void setup()
 {
+
+  if (client.available())
+  {
+    String line = client.readStringUntil('\r');
+    Serial.println(line);
+    if (line.indexOf("access_token") != -1)
+    {
+      int tokenIndex = line.indexOf("access_token") + 15;
+      int tokenEndIndex = line.indexOf("\"", tokenIndex);
+      token = line.substring(tokenIndex, tokenEndIndex);
+      Serial.println(token);
+    }
+  }
 
   Serial.begin(9600);
   while (!Serial)
@@ -106,15 +118,14 @@ void setup()
   printWifiStatus();
   delay(5000);
 
-  
   getSpotifyRequestUrl();
 }
 
 void loop()
 {
-    if (waitingCallback)
+  if (waitingCallback)
   {
-     WiFiClient clientServer = server.available();
+    WiFiClient clientServer = server.available();
 
     if (clientServer)
     { // callback
@@ -181,10 +192,10 @@ void loop()
         }
       }
     }
-    }
+  }
   else if (token == "" && !requestSent)
   {
-        // get spotify user token from code
+    // get spotify user token from code
     String redirect_uri = "http://" + WiFi.localIP().toString() + "/callback";
 
     String body = "code=" + code + "&redirect_uri=" + redirect_uri + "&grant_type=authorization_code";
@@ -208,27 +219,12 @@ void loop()
       client.println();
       client.println(body);
       requestSent = true;
-
-      while (client.connected())
-      {
-        if (client.available())
-        {
-          String line = client.readStringUntil('\n');
-          Serial.println(line);
-          if (line == "\r")
-          {
-            Serial.println("headers received");
-            break;
-          }
-        }
-      }
     }
     else
     {
       Serial.println("connection failed");
     }
   }
-
 }
 
 void printWifiStatus()
