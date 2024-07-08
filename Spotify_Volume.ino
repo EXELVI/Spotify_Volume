@@ -19,7 +19,10 @@ boolean bCW;
 const char *host = "api.spotify.com";
 #include "arduino_secrets.h"
 
+int wifiStatus = WL_IDLE_STATUS;
 WiFiUDP Udp;
+
+WiFiServer server(80);
 
 unsigned long lastConnectionTime = 0;
 const unsigned long postingInterval = 120000;
@@ -31,9 +34,38 @@ String client_id = SECRET_CLIENT_ID;
 String client_secret = SECRET_CLIENT_SECRET;
 int keyIndex = 0; // your network key index number (needed only for WEP)
 
+String code = "";
+String token = "";
+bool requestSent = false;
+bool waitingCallback = true;
+
 int status = WL_IDLE_STATUS;
 
 WiFiClient client;
+
+String getRandomString(int length)
+{
+  String randomString;
+  char charset[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for (int n = 0; n < length; n++)
+  {
+    randomString += charset[random(0, sizeof(charset) - 1)];
+  }
+  return randomString;
+}
+
+String getSpotifyRequestUrl()
+{
+  String redirect_uri = "http://" + WiFi.localIP().toString() + "/callback";
+  String scope = "user-read-playback-state user-modify-playback-state";
+  String state = getRandomString(16);
+
+  String url = "https://accounts.spotify.com/authorize?" + String("client_id=") + client_id + String("&response_type=code") + String("&redirect_uri=") + redirect_uri + String("&scope=") + scope + String("&state=") + state;
+
+  Serial.println(url);
+  return url;
+}
+
 
 void setup()
 {
@@ -72,6 +104,9 @@ void setup()
 
   printWifiStatus();
   delay(5000);
+
+  
+  getSpotifyRequestUrl();
 }
 
 void loop()
