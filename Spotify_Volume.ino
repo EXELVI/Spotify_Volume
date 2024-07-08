@@ -111,6 +111,23 @@ void setup()
 
 void loop()
 {
+   WiFiClient clientServer = server.available();
+
+    if (clientServer)
+    { // callback
+      Serial.println("new client");
+      String currentLine = "";
+      while (clientServer.connected())
+      {
+        if (clientServer.available())
+        {
+          char c = clientServer.read();
+          Serial.write(c);
+   
+        }
+      }
+    }
+
 }
 
 void printWifiStatus()
