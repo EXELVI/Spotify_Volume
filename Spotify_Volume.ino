@@ -32,6 +32,7 @@ char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
 String client_id = SECRET_CLIENT_ID;
 String client_secret = SECRET_CLIENT_SECRET;
+String base64secret = SECRET_BASE64;
 int keyIndex = 0; // your network key index number (needed only for WEP)
 
 String code = "";
@@ -111,6 +112,8 @@ void setup()
 
 void loop()
 {
+    if (waitingCallback)
+  {
      WiFiClient clientServer = server.available();
 
     if (clientServer)
@@ -178,6 +181,53 @@ void loop()
         }
       }
     }
+    }
+  else if (token == "" && !requestSent)
+  {
+        // get spotify user token from code
+    String redirect_uri = "http://" + WiFi.localIP().toString() + "/callback";
+
+    String body = "code=" + code + "&redirect_uri=" + redirect_uri + "&grant_type=authorization_code";
+    String auth = base64secret;
+    String headers = "content-type: application/x-www-form-urlencoded\nAuthorization: Basic " + auth;
+
+    // request
+    client.stop();
+
+    Serial.println("\nStarting connection to server...");
+
+    if (client.connect("accounts.spotify.com", 443))
+    {
+      Serial.println("connected to server");
+      client.println("POST /api/token HTTP/1.1");
+      client.println("Host: accounts.spotify.com");
+      client.println("Content-Type: application/x-www-form-urlencoded");
+      client.println("Authorization: Basic " + auth);
+      client.print("Content-Length: ");
+      client.println(body.length());
+      client.println();
+      client.println(body);
+      requestSent = true;
+
+      while (client.connected())
+      {
+        if (client.available())
+        {
+          String line = client.readStringUntil('\n');
+          Serial.println(line);
+          if (line == "\r")
+          {
+            Serial.println("headers received");
+            break;
+          }
+        }
+      }
+    }
+    else
+    {
+      Serial.println("connection failed");
+    }
+  }
 
 }
 
