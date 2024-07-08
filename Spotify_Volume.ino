@@ -111,7 +111,7 @@ void setup()
 
 void loop()
 {
-   WiFiClient clientServer = server.available();
+     WiFiClient clientServer = server.available();
 
     if (clientServer)
     { // callback
@@ -123,7 +123,58 @@ void loop()
         {
           char c = clientServer.read();
           Serial.write(c);
-   
+          if (c == '\n')
+          {
+            if (currentLine.length() == 0)
+            {
+              String curl = getSpotifyRequestUrl();
+              clientServer.println("HTTP/1.1 200 OK");
+              clientServer.println("Content-type:text/html");
+              clientServer.println();
+              clientServer.println("<html>");
+              clientServer.println("<head>");
+              clientServer.println("<title>Spotify Volume</title>");
+              clientServer.println("</head>");
+              clientServer.println("<body>");
+              clientServer.println("<h1>Spotify Volume</h1>");
+              clientServer.println("<a href=\"" + curl + "\">Callback Url</a>");
+              clientServer.println("</body>");
+              clientServer.println("</html>");
+              break;
+            }
+            else
+            {
+              currentLine = "";
+            }
+          }
+          else if (c != '\r')
+          {
+            currentLine += c;
+          }
+          if (currentLine.indexOf("GET /callback?code=") != -1 && currentLine.indexOf("HTTP/1.1") != -1)
+          {
+            int codeIndex = currentLine.indexOf("GET /callback?code=") + 20;
+            int stateIndex = currentLine.indexOf("&state=");
+            code = currentLine.substring(codeIndex - 1, stateIndex);
+            waitingCallback = false;
+            Serial.println(code);
+
+            clientServer.println("HTTP/1.1 200 OK");
+            clientServer.println("Content-type:text/html");
+            clientServer.println();
+            clientServer.println("<html>");
+            clientServer.println("<head>");
+            clientServer.println("<title>Spotify Volume</title>");
+            clientServer.println("</head>");
+            clientServer.println("<body>");
+            clientServer.println("<h1>Spotify Volume</h1>");
+            clientServer.println("<h2>Callback Received</h2>");
+            clientServer.println("<a href=\"/\">Home</a>");
+            clientServer.println("</body>");
+            clientServer.println("</html>");
+
+            break;
+          }
         }
       }
     }
