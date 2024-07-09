@@ -47,6 +47,9 @@ int status = WL_IDLE_STATUS;
 
 WiFiSSLClient client;
 
+unsigned long lastBlinkTime = 0;
+const unsigned long blinkInterval = 500;
+
 String getRandomString(int length)
 {
   String randomString;
@@ -70,34 +73,62 @@ String getSpotifyRequestUrl()
   return url;
 }
 
-void setup()
+void printToMatrix(char text[])
 {
 
+  matrix.beginDraw();
+  matrix.clear();
+  matrix.textScrollSpeed(100);
+
+  matrix.stroke(0xFFFFFFFF);
+  matrix.textFont(Font_5x7);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.println(text);
+  matrix.endText(SCROLL_LEFT);
+
+  matrix.endDraw();
+}
+
+void printIntToMatrix(int number)
+{
+
+  matrix.beginDraw();
+  matrix.clear();
+
+  matrix.stroke(0xFFFFFFFF);
+  char cstr[16];
+  itoa(number, cstr, 10);
+  matrix.textFont(number < 100 ? Font_5x7 : Font_4x6);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.println(cstr);
+  matrix.endText(NO_SCROLL);
+
+  matrix.endDraw();
+}
+
+void clearMatrix()
+{
+  matrix.beginDraw();
+  matrix.clear();
+  matrix.endDraw();
+}
+
+bool blinked = false;
+
+void setup()
+{
   Serial.begin(9600);
   while (!Serial)
   {
     ;
   }
+  matrix.begin();
 
   pinMode(pinA, INPUT);
   pinMode(pinB, INPUT);
-  pinMode(pinSW, INPUT);
+  pinMode(pinSW, INPUT_PULLUP);
 
   pinALast = digitalRead(pinA);
-
-  matrix.begin();
-
-  matrix.beginDraw();
-
-  matrix.stroke(0xFFFFFFFF);
-
-  const char text[];
-  matrix.textFont(Font_4x6);
-  matrix.beginText(0, 1, 0xFFFFFF);
-  matrix.println(text);
-  matrix.endText(NO_SCROLL);
-
-  matrix.endDraw();
 
   if (WiFi.status() == WL_NO_MODULE)
   {
@@ -130,7 +161,6 @@ void setup()
 
 void loop()
 {
-
   if (client.available())
   {
     if (token == "")
@@ -178,6 +208,7 @@ void loop()
         int volume = line.substring(volumeIndex, volumeEndIndex).toInt();
         Serial.println(volume);
         encoderPosCount = volume;
+        printIntToMatrix(encoderPosCount);
       }
     }
   }
@@ -291,8 +322,10 @@ void loop()
 
     if (aVal != pinALast)
     {
+      editing = true;
       if (digitalRead(pinB) != aVal)
       {
+        encoderPosCount++;
         encoderPosCount++;
         bCW = true;
         if (encoderPosCount > 100)
@@ -302,6 +335,7 @@ void loop()
       }
       else
       {
+        encoderPosCount--;
         encoderPosCount--;
         bCW = false;
 
@@ -321,7 +355,51 @@ void loop()
       }
       Serial.print("Encoder Position: ");
       Serial.println(encoderPosCount);
-      // matrix
+      printIntToMatrix(encoderPosCount);
+    }
+
+    if (editing)
+    {
+      if (millis() - lastBlinkTime > blinkInterval)
+      {
+        if (blinked)
+        {
+          printIntToMatrix(encoderPosCount);
+          blinked = false;
+        }
+        else
+        {
+          clearMatrix();
+          blinked = true;
+        }
+      }
+    }
+
+    if (digitalRead(pinSW) == LOW)
+    {
+      editing = false;
+      // request
+      client.stop();
+
+      Serial.print("\nStarting connection to server api.spotify.com: ");
+
+      if (client.connect("api.spotify.com", 443))
+      {
+        Serial.println("connected to server");
+        client.println("PUT /v1/me/player/volume?volume_percent=" + String(encoderPosCount) + " HTTP/1.1");
+        client.println("Host: api.spotify.com");
+        client.println("Authorization: Bearer " + token);
+        client.println("Content-Type: application/json");
+        client.println("Accept: application/json");
+        client.println("Connection: close");
+        client.println();
+        
+      }
+      else
+      {
+        Serial.println("connection failed");
+      }
+      delay(1000); 
     }
   }
 }
@@ -335,6 +413,12 @@ void printWifiStatus()
   IPAddress ip = WiFi.localIP();
   Serial.print("IP Address: ");
   Serial.println(ip);
+
+  String ipString = WiFi.localIP().toString();
+  char ipCh[ipString.length() + 1];
+  strcpy(ipCh, ipString.c_str());
+
+  printToMatrix(ipCh);
 
   long rssi = WiFi.RSSI();
 
