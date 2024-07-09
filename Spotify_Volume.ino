@@ -1,7 +1,10 @@
 #include "ArduinoGraphics.h"
 #include "Arduino_LED_Matrix.h"
+#include "LiquidCrystal_I2C.h"
 
 ArduinoLEDMatrix matrix;
+// 20x4 LCD
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 int pinA = 3;  // CLK
 int pinB = 4;  // DT
@@ -28,6 +31,12 @@ WiFiServer server(80);
 unsigned long lastConnectionTime = 0;
 const unsigned long postingInterval = 30 * 1000; // 30 seconds
 JSONVar myObject;
+
+byte full[] = {B00000, B00000, B00001, B00011, B00111, B01111, B11111, B11111};
+byte four[] = {B00000, B00000, B00000, B00010, B00110, B01110, B11110, B11110};
+byte three[] = {B00000, B00000, B00000, B00000, B00100, B01100, B11100, B11100};
+byte two[] = {B00000, B00000, B00000, B00000, B00000, B01000, B11000, B11000};
+byte edge[] = {B00000, B00000, B00000, B00000, B00000, B00000, B10000, B10000};
 
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
@@ -117,6 +126,16 @@ void setup()
   }
   matrix.begin();
 
+  lcd.init();
+
+  lcd.backlight();
+
+  lcd.createChar(0, edge);
+  lcd.createChar(1, two);
+  lcd.createChar(2, three);
+  lcd.createChar(3, four);
+  lcd.createChar(4, full);
+
   pinMode(pinA, INPUT);
   pinMode(pinB, INPUT);
   pinMode(pinSW, INPUT_PULLUP);
@@ -150,6 +169,13 @@ void setup()
   server.begin();
 
   getSpotifyRequestUrl();
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.println("Connect to:");
+  lcd.println("http://" + WiFi.localIP().toString() + "/");
+  lcd.println("to authorize.");
+  lcd.println("Awaiting callback...");
 }
 
 void loop()
@@ -167,15 +193,26 @@ void loop()
         token = line.substring(tokenIndex, tokenEndIndex);
         Serial.println(token);
 
+        lcd.setCursor(0, 3);
+        lcd.print("Token Received");
+
         delay(1000);
         client.stop();
 
         delay(1000);
         Serial.print("Starting connection to server... " + String(host) + ": ");
 
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Starting connection to ");
+        lcd.setCursor(0, 1);
+        lcd.print(host);
+
         if (client.connect(host, 443))
         {
           Serial.println("connected to server");
+          lcd.setCursor(0, 2);
+          lcd.print("Connected to server");
           client.println("GET /v1/me/player HTTP/1.1");
           client.println("Host: api.spotify.com");
           client.println("Authorization: Bearer " + token);
@@ -187,6 +224,8 @@ void loop()
         else
         {
           Serial.println("connection failed");
+          lcd.setCursor(0, 2);
+          lcd.print("Connection failed");
         }
       }
     }
@@ -194,6 +233,7 @@ void loop()
     {
       String line = client.readStringUntil('\r');
       Serial.println(line);
+      // get song name, volume,
       if (line.indexOf("volume_percent") != -1)
       {
         int volumeIndex = line.indexOf("volume_percent") + 17;
@@ -202,6 +242,29 @@ void loop()
         Serial.println(volume);
         encoderPosCount = volume;
         printIntToMatrix(encoderPosCount);
+        lcd.setCursor(0, 2);
+        lcd.print("                    ");
+        lcd.setCursor(0, 2);
+        lcd.print("Volume:");
+        lcd.setCursor(0, 3);
+        lcd.print("                    ");
+        lcd.setCursor(0, 3);
+        lcd.print(String(volume));
+      }
+      else if (line.indexOf("name") != -1)
+      {
+        int nameIndex = line.indexOf("name") + 8;
+        int nameEndIndex = line.indexOf("\"", nameIndex);
+        String name = line.substring(nameIndex, nameEndIndex);
+        Serial.println(name);
+        lcd.setCursor(0, 0);
+        lcd.print("                    ");
+        lcd.setCursor(0, 0);
+        lcd.print("Playing:");
+        lcd.setCursor(0, 1);
+        lcd.print("                    ");
+        lcd.setCursor(0, 1);
+        lcd.print(name);
       }
     }
   }
@@ -256,6 +319,10 @@ void loop()
             waitingCallback = false;
             Serial.println(code);
 
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("Callback Received");
+
             clientServer.println("HTTP/1.1 200 OK");
             clientServer.println("Content-type:text/html");
             clientServer.println();
@@ -290,10 +357,17 @@ void loop()
     client.stop();
 
     Serial.print("\nStarting connection to server accounts.spotify.com: ");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Starting connection to ");
+    lcd.setCursor(0, 1);
+    lcd.print("accounts.spotify.com");
 
     if (client.connect("accounts.spotify.com", 443))
     {
       Serial.println("connected to server");
+      lcd.setCursor(0, 2);
+      lcd.print("Connected to server");
       client.println("POST /api/token HTTP/1.1");
       client.println("Host: accounts.spotify.com");
       client.println("Content-Type: application/x-www-form-urlencoded");
@@ -309,6 +383,8 @@ void loop()
     else
     {
       Serial.println("connection failed");
+      lcd.setCursor(0, 2);
+      lcd.print("Connection failed");
     }
   }
   else if (token != "")
@@ -359,26 +435,26 @@ void loop()
 
       Serial.print("Starting connection to server api.spotify.com: ");
 
-      //update 
-        client.stop();
+      // update
+      client.stop();
 
-        Serial.print("Starting connection to server... " + String(host) + ": ");
+      Serial.print("Starting connection to server... " + String(host) + ": ");
 
-        if (client.connect(host, 443))
-        {
-          Serial.println("connected to server");
-          client.println("GET /v1/me/player HTTP/1.1");
-          client.println("Host: api.spotify.com");
-          client.println("Authorization: Bearer " + token);
-          client.println("Content-Type: application/json");
-          client.println("Accept: application/json");
-          client.println("Connection: close");
-          client.println();
-        }
-        else
-        {
-          Serial.println("connection failed");
-        }
+      if (client.connect(host, 443))
+      {
+        Serial.println("connected to server");
+        client.println("GET /v1/me/player HTTP/1.1");
+        client.println("Host: api.spotify.com");
+        client.println("Authorization: Bearer " + token);
+        client.println("Content-Type: application/json");
+        client.println("Accept: application/json");
+        client.println("Connection: close");
+        client.println();
+      }
+      else
+      {
+        Serial.println("connection failed");
+      }
     }
 
     if (editing)
@@ -429,11 +505,18 @@ void loop()
   }
 }
 
+
+
 void printWifiStatus()
 {
 
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("SSID:");
+  lcd.setCursor(0, 1);
+  lcd.print(String(WiFi.SSID()));
 
   IPAddress ip = WiFi.localIP();
   Serial.print("IP Address: ");
@@ -445,9 +528,16 @@ void printWifiStatus()
 
   printToMatrix(ipCh);
 
+  lcd.setCursor(0, 2);
+  lcd.print("IP: " + ipString);
+
   long rssi = WiFi.RSSI();
 
   Serial.print("signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
+  lcd.setCursor(0, 3);
+  lcd.print("strength: " + String(rssi) + " dBm");
+
+  lcd.setCursor(0, 0);
 }
