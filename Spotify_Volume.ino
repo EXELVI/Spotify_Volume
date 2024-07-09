@@ -15,6 +15,7 @@ boolean bCW;
 #include "WiFiS3.h"
 #include <WiFiUdp.h>
 #include <Arduino_JSON.h>
+#include "WiFiSSLClient.h"
 
 const char *host = "api.spotify.com";
 #include "arduino_secrets.h"
@@ -32,7 +33,7 @@ char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
 String client_id = SECRET_CLIENT_ID;
 String client_secret = SECRET_CLIENT_SECRET;
-String base64secret = SECRET_BASE64;
+String base64auth = SECRET_BASE64;
 int keyIndex = 0; // your network key index number (needed only for WEP)
 
 String code = "";
@@ -40,9 +41,11 @@ String token = "";
 bool requestSent = false;
 bool waitingCallback = true;
 
+bool editing = false;
+
 int status = WL_IDLE_STATUS;
 
-WiFiClient client;
+WiFiSSLClient client;
 
 String getRandomString(int length)
 {
@@ -70,19 +73,6 @@ String getSpotifyRequestUrl()
 void setup()
 {
 
-  if (client.available())
-  {
-    String line = client.readStringUntil('\r');
-    Serial.println(line);
-    if (line.indexOf("access_token") != -1)
-    {
-      int tokenIndex = line.indexOf("access_token") + 15;
-      int tokenEndIndex = line.indexOf("\"", tokenIndex);
-      token = line.substring(tokenIndex, tokenEndIndex);
-      Serial.println(token);
-    }
-  }
-
   Serial.begin(9600);
   while (!Serial)
   {
@@ -95,9 +85,24 @@ void setup()
 
   pinALast = digitalRead(pinA);
 
+  matrix.begin();
+
+  matrix.beginDraw();
+
+  matrix.stroke(0xFFFFFFFF);
+
+  const char text[];
+  matrix.textFont(Font_4x6);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.println(text);
+  matrix.endText(NO_SCROLL);
+
+  matrix.endDraw();
+
   if (WiFi.status() == WL_NO_MODULE)
   {
     Serial.println("Communication with WiFi module failed!");
+    // don't continue
     while (true)
       ;
   }
@@ -118,11 +123,65 @@ void setup()
   printWifiStatus();
   delay(5000);
 
+  server.begin();
+
   getSpotifyRequestUrl();
 }
 
 void loop()
 {
+
+  if (client.available())
+  {
+    if (token == "")
+    {
+      String line = client.readStringUntil('\r');
+      Serial.println(line);
+      if (line.indexOf("access_token") != -1)
+      {
+        int tokenIndex = line.indexOf("access_token") + 15;
+        int tokenEndIndex = line.indexOf("\"", tokenIndex);
+        token = line.substring(tokenIndex, tokenEndIndex);
+        Serial.println(token);
+
+        delay(1000);
+        client.stop();
+
+        delay(1000);
+        Serial.print("Starting connection to server... " + String(host) + ": ");
+
+        if (client.connect(host, 443))
+        {
+          Serial.println("connected to server");
+          client.println("GET /v1/me/player HTTP/1.1");
+          client.println("Host: api.spotify.com");
+          client.println("Authorization: Bearer " + token);
+          client.println("Content-Type: application/json");
+          client.println("Accept: application/json");
+          client.println("Connection: close");
+          client.println();
+        }
+        else
+        {
+          Serial.println("connection failed");
+        }
+      }
+    }
+    else
+    {
+      String line = client.readStringUntil('\r');
+      Serial.println(line);
+      if (line.indexOf("volume_percent") != -1)
+      {
+        int volumeIndex = line.indexOf("volume_percent") + 17;
+        int volumeEndIndex = line.indexOf(",", volumeIndex);
+        int volume = line.substring(volumeIndex, volumeEndIndex).toInt();
+        Serial.println(volume);
+        encoderPosCount = volume;
+      }
+    }
+  }
+
   if (waitingCallback)
   {
     WiFiClient clientServer = server.available();
@@ -195,17 +254,18 @@ void loop()
   }
   else if (token == "" && !requestSent)
   {
+
     // get spotify user token from code
     String redirect_uri = "http://" + WiFi.localIP().toString() + "/callback";
 
     String body = "code=" + code + "&redirect_uri=" + redirect_uri + "&grant_type=authorization_code";
-    String auth = base64secret;
+    String auth = base64auth;
     String headers = "content-type: application/x-www-form-urlencoded\nAuthorization: Basic " + auth;
 
     // request
     client.stop();
 
-    Serial.println("\nStarting connection to server...");
+    Serial.print("\nStarting connection to server accounts.spotify.com: ");
 
     if (client.connect("accounts.spotify.com", 443))
     {
@@ -223,6 +283,45 @@ void loop()
     else
     {
       Serial.println("connection failed");
+    }
+  }
+  else if (token != "")
+  {
+    aVal = digitalRead(pinA);
+
+    if (aVal != pinALast)
+    {
+      if (digitalRead(pinB) != aVal)
+      {
+        encoderPosCount++;
+        bCW = true;
+        if (encoderPosCount > 100)
+        {
+          encoderPosCount = 100;
+        }
+      }
+      else
+      {
+        encoderPosCount--;
+        bCW = false;
+
+        if (encoderPosCount < 0)
+        {
+          encoderPosCount = 0;
+        }
+      }
+      Serial.print("Rotated: ");
+      if (bCW)
+      {
+        Serial.println("clockwise");
+      }
+      else
+      {
+        Serial.println("counterclockwise");
+      }
+      Serial.print("Encoder Position: ");
+      Serial.println(encoderPosCount);
+      // matrix
     }
   }
 }
