@@ -39,6 +39,11 @@ byte barEmpty[] = {B11111, B00000, B00000, B00000, B00000, B00000, B00000, B1111
 byte barEndEmpty[] = {B11110, B00001, B00001, B00001, B00001, B00001, B00001, B11110};
 byte barEndFull[] = {B11110, B11111, B11111, B11111, B11111, B11111, B11111, B11110};
 
+byte lock[] = {B00000, B01110, B01010, B01010, B11111, B11011, B11111, B11111};
+
+String device_name = "Device";
+bool support_volume = true;
+
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
 String client_id = SECRET_CLIENT_ID;
@@ -184,6 +189,7 @@ void setup()
   lcd.createChar(3, barEmpty);
   lcd.createChar(4, barEndEmpty);
   lcd.createChar(5, barEndFull);
+  lcd.createChar(6, lock);
 
   pinMode(pinA, INPUT);
   pinMode(pinB, INPUT);
@@ -303,20 +309,34 @@ void loop()
         lcd.setCursor(0, 3);
         lcd.print(String(volume));
       }
-      else if (line.indexOf("name") != -1)
+      if (line.indexOf("name") != -1)
       {
-        int nameIndex = line.indexOf("name") + 8;
-        int nameEndIndex = line.indexOf("\"", nameIndex);
-        String name = line.substring(nameIndex, nameEndIndex);
+        int nameIndex = line.indexOf("\"name\"") + 10;
+        int nameEndIndex = line.indexOf(",", nameIndex);
+        String name = line.substring(nameIndex, nameEndIndex - 1);
+        device_name = name;
         Serial.println(name);
         lcd.setCursor(0, 0);
         lcd.print("                    ");
         lcd.setCursor(0, 0);
-        lcd.print("Playing:");
+        lcd.print("Device:");
         lcd.setCursor(0, 1);
         lcd.print("                    ");
         lcd.setCursor(0, 1);
         lcd.print(name);
+      }
+      if (line.indexOf("supports_volume") != -1)
+      {
+        int supportsVolumeIndex = line.indexOf("supports_volume") + 19;
+        int supportsVolumeEndIndex = line.indexOf(",", supportsVolumeIndex);
+        String supportsVolume = line.substring(supportsVolumeIndex, supportsVolumeEndIndex);
+        support_volume = supportsVolume == "true";
+        Serial.println(support_volume);
+        lcd.setCursor(8, 2);
+        if (!support_volume)
+        {
+          lcd.write(byte(6));
+        }
       }
     }
   }
@@ -461,41 +481,58 @@ void loop()
 
     if (aVal != pinALast)
     {
-      editing = true;
-      if (digitalRead(pinB) != aVal)
+      if (!support_volume)
       {
-        encoderPosCount++;
-        encoderPosCount++;
-        bCW = true;
-        if (encoderPosCount > 100)
+        // repeat 3 times
+        for (int i = 0; i < 3; i++)
         {
-          encoderPosCount = 100;
-        }
+          lcd.setCursor(8, 2);
+          lcd.print(" ");
+          delay(500);
+          lcd.setCursor(8, 2);
+          lcd.write(byte(6));
+          delay(500);
+        }  
       }
       else
       {
-        encoderPosCount--;
-        encoderPosCount--;
-        bCW = false;
 
-        if (encoderPosCount < 0)
+        editing = true;
+        if (digitalRead(pinB) != aVal)
         {
-          encoderPosCount = 0;
+          encoderPosCount++;
+          encoderPosCount++;
+          bCW = true;
+          if (encoderPosCount > 100)
+          {
+            encoderPosCount = 100;
+          }
         }
+        else
+        {
+          encoderPosCount--;
+          encoderPosCount--;
+          bCW = false;
+
+          if (encoderPosCount < 0)
+          {
+            encoderPosCount = 0;
+          }
+        }
+        Serial.print("Rotated: ");
+        if (bCW)
+        {
+          Serial.println("clockwise");
+        }
+        else
+        {
+          Serial.println("counterclockwise");
+        }
+        Serial.print("Encoder Position: ");
+        Serial.println(encoderPosCount);
+        printIntToMatrix(encoderPosCount);
+        printBar(encoderPosCount, "Volume");
       }
-      Serial.print("Rotated: ");
-      if (bCW)
-      {
-        Serial.println("clockwise");
-      }
-      else
-      {
-        Serial.println("counterclockwise");
-      }
-      Serial.print("Encoder Position: ");
-      Serial.println(encoderPosCount);
-      printIntToMatrix(encoderPosCount);
-      printBar(encoderPosCount, "Volume");
     }
 
     if ((millis() - lastConnectionTime > postingInterval) && requestSent && !editing)
@@ -551,8 +588,16 @@ void loop()
         editing = false;
 
         lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Device: ");
+        lcd.setCursor(0, 1);
+        lcd.print(device_name);
         lcd.setCursor(0, 2);
-        lcd.print("Volume:");
+        lcd.print("Volume: ");
+        if (!support_volume)
+        {
+          lcd.write(byte(6));
+        }
         lcd.setCursor(0, 3);
         lcd.print(String(encoderPosCount));
 
