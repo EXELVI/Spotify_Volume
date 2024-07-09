@@ -26,7 +26,7 @@ WiFiUDP Udp;
 WiFiServer server(80);
 
 unsigned long lastConnectionTime = 0;
-const unsigned long postingInterval = 120000;
+const unsigned long postingInterval = 30 * 1000; // 30 seconds
 JSONVar myObject;
 
 char ssid[] = SECRET_SSID;
@@ -103,13 +103,6 @@ void printIntToMatrix(int number)
   matrix.println(cstr);
   matrix.endText(NO_SCROLL);
 
-  matrix.endDraw();
-}
-
-void clearMatrix()
-{
-  matrix.beginDraw();
-  matrix.clear();
   matrix.endDraw();
 }
 
@@ -309,6 +302,8 @@ void loop()
       client.println(body.length());
       client.println();
       client.println(body);
+
+      lastConnectionTime = millis();
       requestSent = true;
     }
     else
@@ -358,6 +353,34 @@ void loop()
       printIntToMatrix(encoderPosCount);
     }
 
+    if ((millis() - lastConnectionTime > postingInterval) && requestSent && !editing)
+    {
+      lastConnectionTime = millis();
+
+      Serial.print("Starting connection to server api.spotify.com: ");
+
+      //update 
+        client.stop();
+
+        Serial.print("Starting connection to server... " + String(host) + ": ");
+
+        if (client.connect(host, 443))
+        {
+          Serial.println("connected to server");
+          client.println("GET /v1/me/player HTTP/1.1");
+          client.println("Host: api.spotify.com");
+          client.println("Authorization: Bearer " + token);
+          client.println("Content-Type: application/json");
+          client.println("Accept: application/json");
+          client.println("Connection: close");
+          client.println();
+        }
+        else
+        {
+          Serial.println("connection failed");
+        }
+    }
+
     if (editing)
     {
       if (millis() - lastBlinkTime > blinkInterval)
@@ -369,7 +392,8 @@ void loop()
         }
         else
         {
-          clearMatrix();
+          matrix.clear();
+
           blinked = true;
         }
       }
@@ -390,16 +414,17 @@ void loop()
         client.println("Host: api.spotify.com");
         client.println("Authorization: Bearer " + token);
         client.println("Content-Type: application/json");
+        client.println("Content-Length: 0");
         client.println("Accept: application/json");
         client.println("Connection: close");
         client.println();
-        
       }
       else
       {
         Serial.println("connection failed");
       }
-      delay(1000); 
+      printIntToMatrix(encoderPosCount);
+      delay(1000);
     }
   }
 }
