@@ -124,15 +124,15 @@ void printBar(int percentual, String uppertext)
   // bar take all screen pos 1y
   // percentual in the middle of the bar
 
-  int barSize = 19;
+  int barSize = 20;
   int barStart = 0;
-  int barEnd = 19;
+  int barEnd = 20;
 
   int barStartFullSize = 1;
   int barEndFullSize = 1;
 
-  int barEmptySize = 17;
-  int barFullSize = 17;
+  int barEmptySize = 18;
+  int barFullSize = 18;
 
   int barFull = (percentual * barFullSize) / 100;
   int barEmpty = barEmptySize - barFull;
@@ -343,15 +343,24 @@ void loop()
               clientServer.println("HTTP/1.1 200 OK");
               clientServer.println("Content-type:text/html");
               clientServer.println();
-              clientServer.println("<html>");
-              clientServer.println("<head>");
-              clientServer.println("<title>Spotify Volume</title>");
-              clientServer.println("</head>");
-              clientServer.println("<body>");
-              clientServer.println("<h1>Spotify Volume</h1>");
-              clientServer.println("<a href=\"" + curl + "\">Callback Url</a>");
-              clientServer.println("</body>");
+              clientServer.println("<!doctype html>");
+              clientServer.println("<html data-bs-theme=\"dark\" lang=\"en\">");
+              clientServer.println("  <head>");
+              clientServer.println("    <meta charset=\"utf-8\">");
+              clientServer.println("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+              clientServer.println("    <title>Spotify Volume</title>");
+              clientServer.println("    <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH\" crossorigin=\"anonymous\">");
+              clientServer.println("  </head>");
+              clientServer.println("  <body>");
+              clientServer.println("    <div class=\"container-md text-center\">");
+              clientServer.println("      <h1 class=\"display-5\">Spotify Volume</h1>");
+              clientServer.println("      <a class=\"btn btn-primary\" role=\"button\" href=\"" + curl + "\">Callback Url</a>");
+              clientServer.println("     </div>");
+              clientServer.println("    <script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\" integrity=\"sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz\" crossorigin=\"anonymous\"></script>");
+              clientServer.println("  </body>");
               clientServer.println("</html>");
+              clientServer.println();
+
               break;
             }
             else
@@ -374,20 +383,27 @@ void loop()
             lcd.clear();
             lcd.setCursor(0, 0);
             lcd.print("Callback Received");
-
             clientServer.println("HTTP/1.1 200 OK");
             clientServer.println("Content-type:text/html");
             clientServer.println();
-            clientServer.println("<html>");
-            clientServer.println("<head>");
-            clientServer.println("<title>Spotify Volume</title>");
-            clientServer.println("</head>");
-            clientServer.println("<body>");
-            clientServer.println("<h1>Spotify Volume</h1>");
-            clientServer.println("<h2>Callback Received</h2>");
-            clientServer.println("<a href=\"/\">Home</a>");
-            clientServer.println("</body>");
+            clientServer.println("<!doctype html>");
+            clientServer.println("<html data-bs-theme=\"dark\" lang=\"en\">");
+            clientServer.println("  <head>");
+            clientServer.println("    <meta charset=\"utf-8\">");
+            clientServer.println("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            clientServer.println("    <title>Spotify Volume</title>");
+            clientServer.println("    <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH\" crossorigin=\"anonymous\">");
+            clientServer.println("  </head>");
+            clientServer.println("  <body>");
+            clientServer.println("    <div class=\"container-md text-center\">");
+            clientServer.println("      <h1 class=\"display-5\">Spotify Volume</h1>");
+            clientServer.println("      <h2 class=\"text-success\">Callback Received</h2>");
+            clientServer.println("      <a class=\"btn btn-primary\" role=\"button\" href=\"/\">Home</a>");
+            clientServer.println("     </div>");
+            clientServer.println("    <script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\" integrity=\"sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz\" crossorigin=\"anonymous\"></script>");
+            clientServer.println("  </body>");
             clientServer.println("</html>");
+            clientServer.println();
 
             break;
           }
@@ -530,39 +546,39 @@ void loop()
 
     if (digitalRead(pinSW) == LOW)
     {
-      if (editing) {
-      editing = false;
-
-      lcd.clear();
-      lcd.setCursor(0, 2);
-      lcd.print("Volume:");
-      lcd.setCursor(0, 3);
-      lcd.print(String(encoderPosCount));
-
-
-      // request
-      client.stop();
-
-      Serial.print("\nStarting connection to server api.spotify.com: ");
-
-      if (client.connect("api.spotify.com", 443))
+      if (editing)
       {
-        Serial.println("connected to server");
-        client.println("PUT /v1/me/player/volume?volume_percent=" + String(encoderPosCount) + " HTTP/1.1");
-        client.println("Host: api.spotify.com");
-        client.println("Authorization: Bearer " + token);
-        client.println("Content-Type: application/json");
-        client.println("Content-Length: 0");
-        client.println("Accept: application/json");
-        client.println("Connection: close");
-        client.println();
-      }
-      else
-      {
-        Serial.println("connection failed");
-      }
-      printIntToMatrix(encoderPosCount);
-      delay(1000);
+        editing = false;
+
+        lcd.clear();
+        lcd.setCursor(0, 2);
+        lcd.print("Volume:");
+        lcd.setCursor(0, 3);
+        lcd.print(String(encoderPosCount));
+
+        // request
+        client.stop();
+
+        Serial.print("\nStarting connection to server api.spotify.com: ");
+
+        if (client.connect("api.spotify.com", 443))
+        {
+          Serial.println("connected to server");
+          client.println("PUT /v1/me/player/volume?volume_percent=" + String(encoderPosCount) + " HTTP/1.1");
+          client.println("Host: api.spotify.com");
+          client.println("Authorization: Bearer " + token);
+          client.println("Content-Type: application/json");
+          client.println("Content-Length: 0");
+          client.println("Accept: application/json");
+          client.println("Connection: close");
+          client.println();
+        }
+        else
+        {
+          Serial.println("connection failed");
+        }
+        printIntToMatrix(encoderPosCount);
+        delay(1000);
       }
     }
   }
