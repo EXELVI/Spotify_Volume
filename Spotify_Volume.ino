@@ -32,11 +32,12 @@ unsigned long lastConnectionTime = 0;
 const unsigned long postingInterval = 30 * 1000; // 30 seconds
 JSONVar myObject;
 
-byte full[] = {B00000, B00000, B00001, B00011, B00111, B01111, B11111, B11111};
-byte four[] = {B00000, B00000, B00000, B00010, B00110, B01110, B11110, B11110};
-byte three[] = {B00000, B00000, B00000, B00000, B00100, B01100, B11100, B11100};
-byte two[] = {B00000, B00000, B00000, B00000, B00000, B01000, B11000, B11000};
-byte edge[] = {B00000, B00000, B00000, B00000, B00000, B00000, B10000, B10000};
+byte barStartEmpty[] = {B01111, B10000, B10000, B10000, B10000, B10000, B10000, B01111};
+byte barStartFull[] = {B01111, B11111, B11111, B11111, B11111, B11111, B11111, B01111};
+byte full[] = {B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111};
+byte barEmpty[] = {B11111, B00000, B00000, B00000, B00000, B00000, B00000, B11111};
+byte barEndEmpty[] = {B11110, B00001, B00001, B00001, B00001, B00001, B00001, B11110};
+byte barEndFull[] = {B11110, B11111, B11111, B11111, B11111, B11111, B11111, B11110};
 
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
@@ -117,6 +118,53 @@ void printIntToMatrix(int number)
 
 bool blinked = false;
 
+void printBar(int percentual, String uppertext)
+{
+  // uppertext on the middle pos 0y
+  // bar take all screen pos 1y
+  // percentual in the middle of the bar
+
+  int barSize = 19;
+  int barStart = 0;
+  int barEnd = 19;
+
+  int barStartFullSize = 1;
+  int barEndFullSize = 1;
+
+  int barEmptySize = 17;
+  int barFullSize = 17;
+
+  int barFull = (percentual * barFullSize) / 100;
+  int barEmpty = barEmptySize - barFull;
+
+  // clear
+  lcd.setCursor(0, 0);
+  lcd.print("                    ");
+  lcd.setCursor(0, 1);
+  lcd.print("                    ");
+
+  int uppertextpos = (20 - uppertext.length()) / 2;
+  lcd.setCursor(uppertextpos, 0);
+  lcd.print(uppertext);
+
+  lcd.setCursor(0, 1);
+  lcd.write(percentual == 0 ? byte(0) : byte(1));
+  for (int i = 0; i < barFull; i++)
+  {
+    lcd.write(byte(2));
+  }
+  for (int i = 0; i < barEmpty; i++)
+  {
+    lcd.write(byte(3));
+  }
+  lcd.write(percentual == 100 ? byte(5) : byte(4));
+
+  // percentual in the midlle of the bar
+  int percentualpos = (barSize - 2) / 2;
+  lcd.setCursor(percentualpos, 1);
+  lcd.print(percentual);
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -130,11 +178,12 @@ void setup()
 
   lcd.backlight();
 
-  lcd.createChar(0, edge);
-  lcd.createChar(1, two);
-  lcd.createChar(2, three);
-  lcd.createChar(3, four);
-  lcd.createChar(4, full);
+  lcd.createChar(0, barStartEmpty);
+  lcd.createChar(1, barStartFull);
+  lcd.createChar(2, full);
+  lcd.createChar(3, barEmpty);
+  lcd.createChar(4, barEndEmpty);
+  lcd.createChar(5, barEndFull);
 
   pinMode(pinA, INPUT);
   pinMode(pinB, INPUT);
@@ -172,10 +221,13 @@ void setup()
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.println("Connect to:");
-  lcd.println("http://" + WiFi.localIP().toString() + "/");
-  lcd.println("to authorize.");
-  lcd.println("Awaiting callback...");
+  lcd.print("Connect to:");
+  lcd.setCursor(0, 1);
+  lcd.print("http://" + WiFi.localIP().toString() + "/");
+  lcd.setCursor(0, 2);
+  lcd.print("to authorize.");
+  lcd.setCursor(0, 3);
+  lcd.print("Awaiting callback...");
 }
 
 void loop()
@@ -427,6 +479,7 @@ void loop()
       Serial.print("Encoder Position: ");
       Serial.println(encoderPosCount);
       printIntToMatrix(encoderPosCount);
+      printBar(encoderPosCount, "Volume");
     }
 
     if ((millis() - lastConnectionTime > postingInterval) && requestSent && !editing)
@@ -477,7 +530,16 @@ void loop()
 
     if (digitalRead(pinSW) == LOW)
     {
+      if (editing) {
       editing = false;
+
+      lcd.clear();
+      lcd.setCursor(0, 2);
+      lcd.print("Volume:");
+      lcd.setCursor(0, 3);
+      lcd.print(String(encoderPosCount));
+
+
       // request
       client.stop();
 
@@ -501,11 +563,10 @@ void loop()
       }
       printIntToMatrix(encoderPosCount);
       delay(1000);
+      }
     }
   }
 }
-
-
 
 void printWifiStatus()
 {
@@ -513,10 +574,12 @@ void printWifiStatus()
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("SSID:");
-  lcd.setCursor(0, 1);
-  lcd.print(String(WiFi.SSID()));
+  lcd.setCursor(0, 2);
+  lcd.print("SSID: " + String(WiFi.SSID()));
+
+  int signalStrenght = map(WiFi.RSSI(), -105, -40, 0, 100);
+
+  printBar(signalStrenght, "Signal Strength");
 
   IPAddress ip = WiFi.localIP();
   Serial.print("IP Address: ");
@@ -536,8 +599,6 @@ void printWifiStatus()
   Serial.print("signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
-  lcd.setCursor(0, 3);
-  lcd.print("strength: " + String(rssi) + " dBm");
 
   lcd.setCursor(0, 0);
 }
