@@ -11,6 +11,7 @@ int pinB = 4;  // DT
 int pinSW = 2; // SW
 int encoderPosCount = 0;
 
+
 int pinALast;
 int aVal;
 boolean bCW;
